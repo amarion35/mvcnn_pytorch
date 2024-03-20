@@ -1,3 +1,18 @@
 {
     "name": "MVCNN",
-}
+    "svcnn_settings": {
+        "pretraining": true,
+        "cnn_name": "resnet18",
+    },
+    "mvcnn_settings": {},
+    "dataset_settings": {
+        "dataset_name": "ModelNet40",
+        "dataset_path": "data/ModelNet40",
+        "num_views": 12,
+        "num_classes": 40,
+        "batch_size": 32,
+        "num_workers": 4,
+        "shuffle": true,
+        "pin_memory": true,
+        "drop_last": true
+    },

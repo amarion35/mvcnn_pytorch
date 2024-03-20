@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import typer
 import torch
+import torch.utils
 import torch.optim as optim
 import torch.nn as nn
 
@@ -20,75 +21,84 @@ def create_folder(log_dir):
         os.mkdir(log_dir)
 
 
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    name: str
+    svcnn_settings: SVCNNSettings
+    mvcnn_settings: MVCNNSettings
+
+
 def train(
-    name="MVCNN",
-    batch_size=8,
-    num_models=1000,
-    lr=5e-5,
-    weight_decay=0.0,
-    no_pretraining=False,
-    cnn_name="vgg11",
-    num_views=12,
-    train_path="modelnet40_images_new_12x/*/train",
-    val_path="modelnet40_images_new_12x/*/test",
+    # name="MVCNN",
+    # batch_size=8,
+    # num_models=1000,
+    # lr=5e-5,
+    # weight_decay=0.0,
+    # no_pretraining=False,
+    # cnn_name="vgg11",
+    # num_views=12,
+    # train_path="modelnet40_images_new_12x/*/train",
+    # val_path="modelnet40_images_new_12x/*/test",
 ) -> None:
+
+    settings_path = Path("settings.json")
+    settings = Settings.model_validate_json(settings_path.read_text())
+
     pretraining = not no_pretraining
 
-    svcnn_settings = SVCNNSettings(
-        name=name,
-        class_names=[
-            "airplane",
-            "bathtub",
-            "bed",
-            "bench",
-            "bookshelf",
-            "bottle",
-            "bowl",
-            "car",
-            "chair",
-            "cone",
-            "cup",
-            "curtain",
-            "desk",
-            "door",
-            "dresser",
-            "flower_pot",
-            "glass_box",
-            "guitar",
-            "keyboard",
-            "lamp",
-            "laptop",
-            "mantel",
-            "monitor",
-            "night_stand",
-            "person",
-            "piano",
-            "plant",
-            "radio",
-            "range_hood",
-            "sink",
-            "sofa",
-            "stairs",
-            "stool",
-            "table",
-            "tent",
-            "toilet",
-            "tv_stand",
-            "vase",
-            "wardrobe",
-            "xbox",
-        ],
-        n_classes=40,
-        pretraining=pretraining,
-        cnn_name=cnn_name,
-    )
-    svcnn = SVCNN(settings=svcnn_settings)
+    classes_names: list[str] = [
+        "airplane",
+        "bathtub",
+        "bed",
+        "bench",
+        "bookshelf",
+        "bottle",
+        "bowl",
+        "car",
+        "chair",
+        "cone",
+        "cup",
+        "curtain",
+        "desk",
+        "door",
+        "dresser",
+        "flower_pot",
+        "glass_box",
+        "guitar",
+        "keyboard",
+        "lamp",
+        "laptop",
+        "mantel",
+        "monitor",
+        "night_stand",
+        "person",
+        "piano",
+        "plant",
+        "radio",
+        "range_hood",
+        "sink",
+        "sofa",
+        "stairs",
+        "stool",
+        "table",
+        "tent",
+        "toilet",
+        "tv_stand",
+        "vase",
+        "wardrobe",
+        "xbox",
+    ]
+    n_classes = len(classes_names)
+
+    svcnn = SVCNN(settings=settings.svcnn_settings)
 
     svcnn_optimizer = optim.Adam(svcnn.parameters(), lr=lr, weight_decay=weight_decay)
 
     n_models_train = num_models * num_views
 
-    svcnn_train_dataset = SingleImgDataset(
+    svcnn_train_dataset = SingleViewDataset(
         train_path,
         scale_aug=False,
         rot_aug=False,
@@ -123,48 +133,7 @@ def train(
     create_folder(log_dir)
     mvcnn_settings = MVCNNSettings(
         name=name,
-        class_names=[
-            "airplane",
-            "bathtub",
-            "bed",
-            "bench",
-            "bookshelf",
-            "bottle",
-            "bowl",
-            "car",
-            "chair",
-            "cone",
-            "cup",
-            "curtain",
-            "desk",
-            "door",
-            "dresser",
-            "flower_pot",
-            "glass_box",
-            "guitar",
-            "keyboard",
-            "lamp",
-            "laptop",
-            "mantel",
-            "monitor",
-            "night_stand",
-            "person",
-            "piano",
-            "plant",
-            "radio",
-            "range_hood",
-            "sink",
-            "sofa",
-            "stairs",
-            "stool",
-            "table",
-            "tent",
-            "toilet",
-            "tv_stand",
-            "vase",
-            "wardrobe",
-            "xbox",
-        ],
+        class_names=classes_names,
         n_classes=40,
         num_views=num_views,
     )

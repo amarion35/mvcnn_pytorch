@@ -1,105 +1,55 @@
 from pathlib import Path
-import glob
 import torch.utils.data
 from PIL import Image
+import pandas as pd
 import torch
 from torchvision import transforms
 
 
 class SingleViewDataset(torch.utils.data.Dataset):
+    """Single View Dataset"""
+
+    # Inputs
+    _path: Path
+    _subset: str
+    _transform: transforms.Compose
+
+    # Local
+    _class_names: list[str]
+    _dataset: pd.DataFrame
 
     def __init__(
         self,
-        root_dir,
-        scale_aug=False,
-        rot_aug=False,
-        test_mode=False,
-        num_models=0,
-        num_views=12,
-    ):
-        self.classnames = [
-            "airplane",
-            "bathtub",
-            "bed",
-            "bench",
-            "bookshelf",
-            "bottle",
-            "bowl",
-            "car",
-            "chair",
-            "cone",
-            "cup",
-            "curtain",
-            "desk",
-            "door",
-            "dresser",
-            "flower_pot",
-            "glass_box",
-            "guitar",
-            "keyboard",
-            "lamp",
-            "laptop",
-            "mantel",
-            "monitor",
-            "night_stand",
-            "person",
-            "piano",
-            "plant",
-            "radio",
-            "range_hood",
-            "sink",
-            "sofa",
-            "stairs",
-            "stool",
-            "table",
-            "tent",
-            "toilet",
-            "tv_stand",
-            "vase",
-            "wardrobe",
-            "xbox",
-        ]
-        self.root_dir = root_dir
-        self.scale_aug = scale_aug
-        self.rot_aug = rot_aug
-        self.test_mode = test_mode
+        path: Path,
+        subset: str,
+        transform: transforms.Compose,
+    ) -> None:
+        self._path = path
+        self._subset = subset
+        self._transform = transform
 
-        set_ = root_dir.split("/")[-1]
-        parent_dir = root_dir.rsplit("/", 2)[0]
-        self.filepaths = []
-        for i in range(len(self.classnames)):
-            all_files = sorted(
-                glob.glob(
-                    parent_dir + "/" + self.classnames[i] + "/" + set_ + "/*shaded*.png"
-                )
-            )
-            if num_models == 0:
-                # Use the whole dataset
-                self.filepaths.extend(all_files)
-            else:
-                self.filepaths.extend(all_files[: min(num_models, len(all_files))])
-
-        self.transform = transforms.Compose(
-            [
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
+        filenames = list(self._path.glob("*/*/*"))
+        self._class_names = sorted(list(set([f.parent.parent.name for f in filenames])))
+        self._dataset = pd.DataFrame(
+            {
+                "filenames": filenames,
+                "class_name": [f.parent.parent.name for f in filenames],
+                "class_index": [
+                    self._class_names.index(f.parent.parent.name) for f in filenames
+                ],
+                "model_name": [f.parent.name.rsplit(".", 2)[0] for f in filenames],
+                "subset": [f.parent.name for f in filenames],
+            }
         )
 
-    def __len__(self):
-        return len(self.filepaths)
+    def __len__(self) -> int:
+        return len(self._dataset)
 
-    def __getitem__(self, idx):
-        path = self.filepaths[idx]
-        class_name = path.split("/")[-3]
-        class_id = self.classnames.index(class_name)
-
-        # Use PIL instead
-        im = Image.open(self.filepaths[idx]).convert("RGB")
-        if self.transform:
-            im = self.transform(im)
-
-        return (class_id, im, path)
+    def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
+        """Return the images and the class label"""
+        # Get the class index
+        class_index = self._dataset["class_index"].iloc[index]
+        # Get the image
+        image = Image.open(self._dataset["filenames"].iloc[index]).convert("RGB")
+        image = self._transform(image)
+        return class_index, image
