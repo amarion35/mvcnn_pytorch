@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 from PIL import Image
 import pandas as pd
 import torch
@@ -16,6 +17,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
     _transform: transforms.Compose
 
     # Local
+    _logger: logging.Logger
     _class_names: list[str]
     _samples_names: list[str]
     _num_views: int
@@ -27,6 +29,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
         subset: str,
         transform: transforms.Compose,
     ) -> None:
+        self._logger = logging.getLogger(self.__class__.__name__)
         self._path = path
         self._set = subset
         self._transform = transform
@@ -44,10 +47,14 @@ class MultiviewDataset(torch.utils.data.Dataset):
                 "subset": [f.parent.name for f in filenames],
             }
         )
+        # Filter the dataset
+        self._dataset = self._dataset[self._dataset["subset"] == subset]
+
+        # Get the file paths
         self._samples_names = list(self._dataset["model_name"].unique())
 
         # Get the number of views per model
-        sizes = self._dataset.groupby(["class_name", "model_name"]).size()
+        sizes = self._dataset["model_name"].groupby(level=0).count()
         # Check if all models have the same number of views
         assert len(set(sizes)) == 1, "All models must have the same number of views"
         self._num_views = int(sizes.iloc[0])  # type: ignore
@@ -57,6 +64,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
         """Return the images and the class label"""
+        self._logger.debug("Loading image %i", index)
         # Get the model name
         model_name = self._samples_names[index]
         # Get the class name

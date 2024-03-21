@@ -1,18 +1,53 @@
 {
     "name": "MVCNN",
-    "svcnn_settings": {
-        "pretraining": true,
-        "cnn_name": "resnet18",
-    },
-    "mvcnn_settings": {},
     "dataset_settings": {
-        "dataset_name": "ModelNet40",
-        "dataset_path": "data/ModelNet40",
-        "num_views": 12,
-        "num_classes": 40,
-        "batch_size": 32,
-        "num_workers": 4,
-        "shuffle": true,
-        "pin_memory": true,
-        "drop_last": true
+        "path": "data/modelnet40_images_new_12x/"
     },
+    "svcnn_settings": {
+        "name": "svcnn",
+        "pretraining": true,
+        "cnn_name": "resnet18"
+    },
+    "svcnn_optimizer_settings": {
+        "lr": 0.001,
+        "betas": [0.9, 0.999],
+        "weight_decay": 0.0001
+    },
+    "svcnn_train_dataloader_settings": {
+        "batch_size": 32,
+        "shuffle": true,
+        "num_workers": 0
+    },
+    "svcnn_val_dataloader_settings": {
+        "batch_size": 32,
+        "shuffle": false,
+        "num_workers": 0
+    },
+    "svcnn_trainer_settings": {
+        "log_dir": "logs/svcnn",
+        "steps_per_epoch": 10
+    },
+    "mvcnn_settings": {
+        "name": "mvcnn",
+        "num_views": 12
+    },
+    "mvcnn_optimizer_settings": {
+        "lr": 0.001,
+        "betas": [0.9, 0.999],
+        "weight_decay": 0.0001
+    },
+    "mvcnn_train_dataloader_settings": {
+        "batch_size": 32,
+        "shuffle": true,
+        "num_workers": 0
+    },
+    "mvcnn_val_dataloader_settings": {
+        "batch_size": 32,
+        "shuffle": false,
+        "num_workers": 0
+    },
+    "mvcnn_trainer_settings": {
+        "log_dir": "logs/mvcnn",
+        "steps_per_epoch": 100
+    }
+}

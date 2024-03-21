@@ -1,8 +1,9 @@
 from pathlib import Path
-import torch.utils.data
+import logging
 from PIL import Image
 import pandas as pd
 import torch
+import torch.utils.data
 from torchvision import transforms
 
 
@@ -15,6 +16,7 @@ class SingleViewDataset(torch.utils.data.Dataset):
     _transform: transforms.Compose
 
     # Local
+    _logger: logging.Logger
     _class_names: list[str]
     _dataset: pd.DataFrame
 
@@ -24,11 +26,13 @@ class SingleViewDataset(torch.utils.data.Dataset):
         subset: str,
         transform: transforms.Compose,
     ) -> None:
+        self._logger = logging.getLogger(self.__class__.__name__)
         self._path = path
         self._subset = subset
         self._transform = transform
 
-        filenames = list(self._path.glob("*/*/*"))
+        filenames: list[Path] = list(self._path.glob("*/*/*"))
+        filenames = [f for f in filenames if not f.name.startswith(".")]
         self._class_names = sorted(list(set([f.parent.parent.name for f in filenames])))
         self._dataset = pd.DataFrame(
             {
@@ -47,9 +51,11 @@ class SingleViewDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
         """Return the images and the class label"""
+        self._logger.debug("Loading image %i", index)
         # Get the class index
         class_index = self._dataset["class_index"].iloc[index]
         # Get the image
-        image = Image.open(self._dataset["filenames"].iloc[index]).convert("RGB")
+        filename = self._dataset["filenames"].iloc[index]
+        image = Image.open(filename).convert("RGB")
         image = self._transform(image)
         return class_index, image

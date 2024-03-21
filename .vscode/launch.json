@@ -5,11 +5,26 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
+            "name": "Train",
             "type": "debugpy",
             "request": "launch",
             "program": "train_mvcnn.py",
-            "args": [],
+            "args": [
+                "-name",
+                "mvcnn",
+                "-num_models",
+                "1000",
+                "-weight_decay",
+                "0.001",
+                "-num_views",
+                "12",
+                "-cnn_name",
+                "vgg11",
+                "-train_path",
+                "data/modelnet40_images_new_12x/*/train",
+                "-val_path",
+                "data/modelnet40_images_new_12x/*/test",
+            ],
             "console": "integratedTerminal"
         }
     ]

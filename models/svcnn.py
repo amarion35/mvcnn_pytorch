@@ -12,58 +12,42 @@ class SVCNN(Model):
     """Single View Convolutional Neural Network (SVCNN) model"""
 
     _settings: SVCNNSettings
-    _use_resnet: bool
     _net: nn.Module
+    _embedding_model: nn.Module
+    _embedding_size: int
+    _classifier: nn.Module
 
     def __init__(self, settings: SVCNNSettings) -> None:
         super(SVCNN, self).__init__(settings=settings)
 
-        self._use_resnet = self._settings.cnn_name.startswith("resnet")
+        if self._settings.cnn_name == "resnet18":
+            resnet = models.resnet18(pretrained=self._settings.pretraining)
+        elif self._settings.cnn_name == "resnet34":
+            resnet = models.resnet34(pretrained=self._settings.pretraining)
+        elif self._settings.cnn_name == "resnet50":
+            resnet = models.resnet50(pretrained=self._settings.pretraining)
 
-        if self._use_resnet:
-            if self._settings.cnn_name == "resnet18":
-                self._net = models.resnet18(pretrained=self._settings.pretraining)
-                self._net.fc = nn.Linear(512, 40)
-            elif self._settings.cnn_name == "resnet34":
-                self._net = models.resnet34(pretrained=self._settings.pretraining)
-                self._net.fc = nn.Linear(512, 40)
-            elif self._settings.cnn_name == "resnet50":
-                self._net = models.resnet50(pretrained=self._settings.pretraining)
-                self._net.fc = nn.Linear(2048, 40)
-        else:
-            if self._settings.cnn_name == "alexnet":
-                self._net_1 = models.alexnet(
-                    pretrained=self._settings.pretraining
-                ).features
-                self._net_2 = models.alexnet(
-                    pretrained=self._settings.pretraining
-                ).classifier
-            elif self._settings.cnn_name == "vgg11":
-                self._net_1 = models.vgg11(
-                    pretrained=self._settings.pretraining
-                ).features
-                self._net_2 = models.vgg11(
-                    pretrained=self._settings.pretraining
-                ).classifier
-            elif self._settings.cnn_name == "vgg16":
-                self._net_1 = models.vgg16(
-                    pretrained=self._settings.pretraining
-                ).features
-                self._net_2 = models.vgg16(
-                    pretrained=self._settings.pretraining
-                ).classifier
+        layers = list(resnet.children())
+        last_layer = layers.pop()
+        layers.append(nn.Flatten())
+        self._embedding_model = nn.Sequential(*layers)
 
-            self._net_2._modules["6"] = nn.Linear(4096, 40)
+        self._embedding_size = last_layer.in_features
+        fc_layer = nn.Linear(self._embedding_size, 40)
+        self._classifier = nn.Sequential(fc_layer)
+
+        self._net = nn.Sequential(self._embedding_model, self._classifier)
 
     @property
-    def use_resnet(self) -> bool:
-        """Return whether the model uses a ResNet architecture"""
-        return self._use_resnet
+    def embedding_model(self) -> nn.Module:
+        """Return the embedding model"""
+        return self._embedding_model
+
+    @property
+    def embedding_size(self) -> int:
+        """Return the embedding size"""
+        return self._embedding_size
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass"""
-        if self._use_resnet:
-            return self._net(x)
-        else:
-            y = self._net_1(x)
-            return self._net_2(y.view(y.shape[0], -1))
+        return self._net(x)

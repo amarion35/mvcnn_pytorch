@@ -10,22 +10,23 @@ class MVCNN(Model):
     """Multi View Convolutional Neural Network (MVCNN) model"""
 
     _settings: MVCNNSettings
-    _net_1: nn.Module
-    _net_2: nn.Module
+    _svcnn_embedding_model: nn.Module
+    _classifier: nn.Module
+    _net: nn.Module
 
-    def __init__(self, model: SVCNN, settings: MVCNNSettings) -> None:
+    def __init__(self, svcnn: SVCNN, settings: MVCNNSettings) -> None:
         super(MVCNN, self).__init__(settings=settings)
 
-        if model.use_resnet:
-            self._net_1 = nn.Sequential(*list(model.net.children())[:-1])
-            self._net_2 = model.net.fc
-        else:
-            self._net_1 = model._net_1
-            self._net_2 = model._net_2
+        self._svcnn_embedding_model = svcnn.embedding_model
+
+        fc_layer = nn.Linear(svcnn.embedding_size, 40)
+        self._classifier = nn.Sequential(fc_layer)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass"""
-        y = self._net_1(x)
+        # Compute the embedding of each image
+        y = self._svcnn_embedding_model(x)
+        # Reshape the tensor to have the shape (num_views, batch_size, num_features)
         y = y.view(
             (
                 int(x.shape[0] / self._settings.num_views),
@@ -34,5 +35,10 @@ class MVCNN(Model):
                 y.shape[-2],
                 y.shape[-1],
             )
-        )  # (8,12,512,7,7)
-        return self._net_2(torch.max(y, 1)[0].view(y.shape[0], -1))
+        )
+        # Max pooling over the views
+        y = torch.max(y, 1)[0]
+        # Flatten the tensor
+        y = y.view(y.shape[0], -1)
+        # Classification
+        return self._classifier(y)

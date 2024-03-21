@@ -1,186 +1,179 @@
-import os
+import logging
 from pathlib import Path
-import shutil
-import typer
 import torch
-import torch.utils
+import torch.utils.data
 import torch.optim as optim
 import torch.nn as nn
+from torchvision import transforms
 
-from tools import Trainer, MultiviewDataset, SingleViewDataset
+from tools import Trainer, MultiviewDataset, SingleViewDataset, DatasetSettings
 from models import MVCNN, SVCNN, MVCNNSettings, SVCNNSettings
-
-
-def create_folder(log_dir):
-    # make summary folder
-    if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
-    else:
-        print("WARNING: summary folder already exists!! It will be overwritten!!")
-        shutil.rmtree(log_dir)
-        os.mkdir(log_dir)
 
 
 from pydantic_settings import BaseSettings
 
 
+class OptimizerSettings(BaseSettings):
+    lr: float
+    betas: tuple[float, float]
+    weight_decay: float
+
+
+class dataloaderSettings(BaseSettings):
+    batch_size: int
+    num_workers: int
+    shuffle: bool
+
+
+class TrainerSettings(BaseSettings):
+    log_dir: Path
+    steps_per_epoch: int
+
+
 class Settings(BaseSettings):
     name: str
+    dataset_settings: DatasetSettings
     svcnn_settings: SVCNNSettings
+    svcnn_optimizer_settings: OptimizerSettings
+    svcnn_train_dataloader_settings: dataloaderSettings
+    svcnn_val_dataloader_settings: dataloaderSettings
+    svcnn_trainer_settings: TrainerSettings
     mvcnn_settings: MVCNNSettings
+    mvcnn_optimizer_settings: OptimizerSettings
+    mvcnn_train_dataloader_settings: dataloaderSettings
+    mvcnn_val_dataloader_settings: dataloaderSettings
+    mvcnn_trainer_settings: TrainerSettings
 
 
-def train(
-    # name="MVCNN",
-    # batch_size=8,
-    # num_models=1000,
-    # lr=5e-5,
-    # weight_decay=0.0,
-    # no_pretraining=False,
-    # cnn_name="vgg11",
-    # num_views=12,
-    # train_path="modelnet40_images_new_12x/*/train",
-    # val_path="modelnet40_images_new_12x/*/test",
-) -> None:
+def train() -> None:
 
     settings_path = Path("settings.json")
-    settings = Settings.model_validate_json(settings_path.read_text())
-
-    pretraining = not no_pretraining
-
-    classes_names: list[str] = [
-        "airplane",
-        "bathtub",
-        "bed",
-        "bench",
-        "bookshelf",
-        "bottle",
-        "bowl",
-        "car",
-        "chair",
-        "cone",
-        "cup",
-        "curtain",
-        "desk",
-        "door",
-        "dresser",
-        "flower_pot",
-        "glass_box",
-        "guitar",
-        "keyboard",
-        "lamp",
-        "laptop",
-        "mantel",
-        "monitor",
-        "night_stand",
-        "person",
-        "piano",
-        "plant",
-        "radio",
-        "range_hood",
-        "sink",
-        "sofa",
-        "stairs",
-        "stool",
-        "table",
-        "tent",
-        "toilet",
-        "tv_stand",
-        "vase",
-        "wardrobe",
-        "xbox",
-    ]
-    n_classes = len(classes_names)
+    settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
 
     svcnn = SVCNN(settings=settings.svcnn_settings)
 
-    svcnn_optimizer = optim.Adam(svcnn.parameters(), lr=lr, weight_decay=weight_decay)
+    svcnn_optimizer = optim.Adam(
+        params=svcnn.parameters(),
+        lr=settings.svcnn_optimizer_settings.lr,
+        betas=settings.svcnn_optimizer_settings.betas,
+        weight_decay=settings.svcnn_optimizer_settings.weight_decay,
+    )
 
-    n_models_train = num_models * num_views
-
+    svcnn_train_transform = transforms.Compose(
+        transforms=[
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
     svcnn_train_dataset = SingleViewDataset(
-        train_path,
-        scale_aug=False,
-        rot_aug=False,
-        num_models=n_models_train,
-        num_views=num_views,
+        path=settings.dataset_settings.path,
+        subset="train",
+        transform=svcnn_train_transform,
     )
     svcnn_train_loader = torch.utils.data.DataLoader(
-        svcnn_train_dataset, batch_size=64, shuffle=True, num_workers=0
+        dataset=svcnn_train_dataset,
+        batch_size=settings.svcnn_train_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_train_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_train_dataloader_settings.num_workers,
     )
 
+    svcnn_val_transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
     svcnn_val_dataset = SingleViewDataset(
-        val_path, scale_aug=False, rot_aug=False, test_mode=True
+        path=settings.dataset_settings.path,
+        subset="test",
+        transform=svcnn_val_transform,
     )
     svcnn_val_loader = torch.utils.data.DataLoader(
-        svcnn_val_dataset, batch_size=64, shuffle=False, num_workers=0
+        dataset=svcnn_val_dataset,
+        batch_size=settings.svcnn_val_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_val_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_val_dataloader_settings.num_workers,
     )
 
     svcnn_trainer = Trainer(
-        svcnn,
-        svcnn_train_loader,
-        svcnn_val_loader,
-        svcnn_optimizer,
-        nn.CrossEntropyLoss(),
-        "svcnn",
-        log_dir,
-        num_views=1,
+        model=svcnn,
+        train_loader=svcnn_train_loader,
+        val_loader=svcnn_val_loader,
+        loss=nn.CrossEntropyLoss(),
+        optimizer=svcnn_optimizer,
+        log_dir=settings.svcnn_trainer_settings.log_dir,
+        steps_per_epoch=settings.svcnn_trainer_settings.steps_per_epoch,
     )
     svcnn_trainer.train(1)
 
     # STAGE 2
-    log_dir = name + "_stage_2"
-    create_folder(log_dir)
+
     mvcnn_settings = MVCNNSettings(
-        name=name,
-        class_names=classes_names,
-        n_classes=40,
-        num_views=num_views,
+        name=settings.mvcnn_settings.name,
+        num_views=settings.mvcnn_settings.num_views,
     )
     mvcnn = MVCNN(
-        model=svcnn,
+        svcnn=svcnn,
         settings=mvcnn_settings,
     )
-    del svcnn
 
-    svcnn_optimizer = optim.Adam(
-        mvcnn.parameters(),
-        lr=lr,
-        weight_decay=weight_decay,
-        betas=(0.9, 0.999),
+    mvcnn_optimizer = optim.Adam(
+        params=mvcnn.parameters(),
+        lr=settings.mvcnn_optimizer_settings.lr,
+        betas=settings.mvcnn_optimizer_settings.betas,
+        weight_decay=settings.mvcnn_optimizer_settings.weight_decay,
     )
 
-    svcnn_train_dataset = MultiviewDataset(
-        train_path,
-        scale_aug=False,
-        rot_aug=False,
-        num_models=n_models_train,
-        num_views=num_views,
+    mvcnn_train_transform = transforms.Compose(
+        transforms=[
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
     )
-    svcnn_train_loader = torch.utils.data.DataLoader(
-        svcnn_train_dataset, batch_size=batch_size, shuffle=False, num_workers=0
-    )  # shuffle needs to be false! it's done within the trainer
+    mvcnn_train_dataset = MultiviewDataset(
+        path=settings.dataset_settings.path,
+        subset="train",
+        transform=mvcnn_train_transform,
+    )
+    mvcnn_train_loader = torch.utils.data.DataLoader(
+        dataset=mvcnn_train_dataset,
+        batch_size=settings.mvcnn_train_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_train_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_train_dataloader_settings.num_workers,
+    )
 
-    svcnn_val_dataset = MultiviewDataset(
-        val_path, scale_aug=False, rot_aug=False, num_views=num_views
+    mvcnn_val_dataset = MultiviewDataset(
+        path=settings.dataset_settings.path,
+        subset="test",
+        transform=mvcnn_train_transform,
     )
-    svcnn_val_loader = torch.utils.data.DataLoader(
-        svcnn_val_dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    mvcnn_val_loader = torch.utils.data.DataLoader(
+        dataset=mvcnn_val_dataset,
+        batch_size=settings.mvcnn_val_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_val_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_val_dataloader_settings.num_workers,
     )
-    print("num_train_files: " + str(len(svcnn_train_dataset._filepaths)))
-    print("num_val_files: " + str(len(svcnn_val_dataset._filepaths)))
-    svcnn_trainer = Trainer(
-        mvcnn,
-        svcnn_train_loader,
-        svcnn_val_loader,
-        svcnn_optimizer,
-        nn.CrossEntropyLoss(),
-        "mvcnn",
-        log_dir,
-        num_views=num_views,
-    )
-    svcnn_trainer.train(1)
 
+    mvcnn_trainer = Trainer(
+        model=mvcnn,
+        train_loader=mvcnn_train_loader,
+        val_loader=mvcnn_val_loader,
+        loss=nn.CrossEntropyLoss(),
+        optimizer=mvcnn_optimizer,
+        log_dir=settings.mvcnn_trainer_settings.log_dir,
+        steps_per_epoch=settings.mvcnn_trainer_settings.steps_per_epoch,
+    )
+    mvcnn_trainer.train(1)
+
+
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logging.getLogger("PIL").setLevel(logging.INFO)
+logging.getLogger("SingleViewDataset").setLevel(logging.INFO)
 
 if __name__ == "__main__":
     train()
