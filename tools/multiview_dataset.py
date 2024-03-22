@@ -35,6 +35,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
         self._transform = transform
 
         filenames = list(self._path.glob("*/*/*"))
+        filenames = [f for f in filenames if not f.name.startswith(".")]
         self._class_names = sorted(list(set([f.parent.parent.name for f in filenames])))
         self._dataset = pd.DataFrame(
             {
@@ -43,7 +44,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
                 "class_index": [
                     self._class_names.index(f.parent.parent.name) for f in filenames
                 ],
-                "model_name": [f.parent.name.rsplit(".", 2)[0] for f in filenames],
+                "model_name": [f.name.rsplit(".", 2)[0] for f in filenames],
                 "subset": [f.parent.name for f in filenames],
             }
         )
@@ -54,13 +55,19 @@ class MultiviewDataset(torch.utils.data.Dataset):
         self._samples_names = list(self._dataset["model_name"].unique())
 
         # Get the number of views per model
-        sizes = self._dataset["model_name"].groupby(level=0).count()
+        n_views = self._dataset.groupby("model_name").size()
         # Check if all models have the same number of views
-        assert len(set(sizes)) == 1, "All models must have the same number of views"
-        self._num_views = int(sizes.iloc[0])  # type: ignore
+        if not n_views.nunique() == 1:
+            raise ValueError("All models must have the same number of views")
+
+        self._num_views = int(n_views.iloc[0])
 
     def __len__(self) -> int:
-        return int(len(self._filepaths) / self._num_views)
+        return int(len(self._dataset) / self._num_views)
+
+    @property
+    def n_classes(self) -> int:
+        return len(self._class_names)
 
     def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
         """Return the images and the class label"""

@@ -41,13 +41,17 @@ class SingleViewDataset(torch.utils.data.Dataset):
                 "class_index": [
                     self._class_names.index(f.parent.parent.name) for f in filenames
                 ],
-                "model_name": [f.parent.name.rsplit(".", 2)[0] for f in filenames],
+                "model_name": [f.name.rsplit(".", 2)[0] for f in filenames],
                 "subset": [f.parent.name for f in filenames],
             }
         )
 
     def __len__(self) -> int:
         return len(self._dataset)
+
+    @property
+    def n_classes(self) -> int:
+        return len(self._class_names)
 
     def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
         """Return the images and the class label"""
