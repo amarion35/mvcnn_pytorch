@@ -8,8 +8,6 @@ import torch.utils.data
 from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 
-from .metrics import Metrics
-
 
 class Trainer(object):
     """Trainer class"""
@@ -19,7 +17,7 @@ class Trainer(object):
     _train_loader: torch.utils.data.DataLoader
     _val_loader: torch.utils.data.DataLoader
     _loss: nn.Module
-    _metrics: Metrics
+    _metrics: nn.Module
     _optimizer: torch.optim.Optimizer
     _log_dir: Path
     _steps_per_epoch: int
@@ -34,7 +32,7 @@ class Trainer(object):
         train_loader: torch.utils.data.DataLoader,
         val_loader: torch.utils.data.DataLoader,
         loss: nn.Module,
-        metrics: Metrics,
+        metrics: nn.Module,
         optimizer: torch.optim.Optimizer,
         log_dir: Path,
         steps_per_epoch: int,

@@ -6,56 +6,42 @@ import torch.optim as optim
 import torch.nn as nn
 from torchvision import transforms
 
-from tools import (
+from mvcnn import (
     Trainer,
     MultiviewDataset,
     SingleViewDataset,
     DatasetSettings,
     Metrics,
     Accuracy,
+    MVCNN,
+    SVCNN,
+    DataloaderSettings,
+    OptimizerSettings,
+    TrainerSettings,
 )
-from models import MVCNN, SVCNN
 
 
 from pydantic_settings import BaseSettings
 
 
-class OptimizerSettings(BaseSettings):
-    lr: float
-    betas: tuple[float, float]
-    weight_decay: float
-
-
-class dataloaderSettings(BaseSettings):
-    batch_size: int
-    num_workers: int
-    shuffle: bool
-
-
-class TrainerSettings(BaseSettings):
-    log_dir: Path
-    steps_per_epoch: int
-
-
 class Settings(BaseSettings):
+    """Settings for the training process."""
+
     name: str
     cnn_name: str
     pretraining: bool
     dataset_settings: DatasetSettings
     svcnn_optimizer_settings: OptimizerSettings
-    svcnn_train_dataloader_settings: dataloaderSettings
-    svcnn_val_dataloader_settings: dataloaderSettings
+    svcnn_train_dataloader_settings: DataloaderSettings
+    svcnn_val_dataloader_settings: DataloaderSettings
     svcnn_trainer_settings: TrainerSettings
     mvcnn_optimizer_settings: OptimizerSettings
-    mvcnn_train_dataloader_settings: dataloaderSettings
-    mvcnn_val_dataloader_settings: dataloaderSettings
+    mvcnn_train_dataloader_settings: DataloaderSettings
+    mvcnn_val_dataloader_settings: DataloaderSettings
     mvcnn_trainer_settings: TrainerSettings
 
 
-def train() -> None:
-
-    settings_path = Path("settings.json")
-    settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
+def train_svcnn(settings: Settings) -> SVCNN:
 
     svcnn_train_transform = transforms.Compose(
         transforms=[
@@ -121,9 +107,13 @@ def train() -> None:
         log_dir=settings.svcnn_trainer_settings.log_dir,
         steps_per_epoch=settings.svcnn_trainer_settings.steps_per_epoch,
     )
-    svcnn_trainer.train(1)
 
-    # STAGE 2
+    svcnn_trainer.train(settings.svcnn_trainer_settings.epochs)
+
+    return svcnn
+
+
+def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
 
     mvcnn_train_transform = transforms.Compose(
         transforms=[
@@ -166,7 +156,7 @@ def train() -> None:
 
     mvcnn = MVCNN(
         svcnn=svcnn,
-        n_classes=svcnn_train_dataset.n_classes,
+        n_classes=mvcnn_train_dataset.n_classes,
     )
 
     mvcnn_optimizer = optim.Adam(
@@ -188,7 +178,22 @@ def train() -> None:
         log_dir=settings.mvcnn_trainer_settings.log_dir,
         steps_per_epoch=settings.mvcnn_trainer_settings.steps_per_epoch,
     )
-    mvcnn_trainer.train(1)
+
+    mvcnn_trainer.train(settings.mvcnn_trainer_settings.epochs)
+
+    return mvcnn
+
+
+def train() -> None:
+
+    settings_path = Path("settings.json")
+    settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
+
+    # STAGE 1
+    svcnn = train_svcnn(settings)
+
+    # STAGE 2
+    mvcnn = train_mvcnn(svcnn, settings)
 
 
 logging.basicConfig(

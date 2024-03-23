@@ -21,6 +21,8 @@ class Metrics(torch.nn.Module):
 
 
 class Accuracy(torch.nn.Module):
+    """Accuracy metric"""
+
     def forward(
         self, predictions: torch.Tensor, targets: torch.Tensor
     ) -> dict[str, float]:
