@@ -209,7 +209,7 @@ class Trainer(object):
             mode="eval",
         )
 
-    def save_model_checkpoint(self, path: Path) -> None:
+    def _save_model_checkpoint(self, path: Path) -> None:
         """Save the model checkpoint"""
         self._logger.info("Saving model checkpoint to %s", path)
         self._model.save(path)
@@ -222,6 +222,6 @@ class Trainer(object):
         for epoch in range(n_epochs):
             self._train_epoch(epoch, n_epochs)
             self._eval_epoch(epoch, n_epochs)
-            self.save_model_checkpoint(self._checkpoints_dir / f"epoch_{epoch+1}.pth")
+            self._save_model_checkpoint(self._checkpoints_dir / f"epoch_{epoch+1}.pth")
 
         self._logger.info("Training completed")
