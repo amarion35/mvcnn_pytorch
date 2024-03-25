@@ -1,3 +1,4 @@
+from pathlib import Path
 import torch
 import torch.nn as nn
 
@@ -19,6 +20,22 @@ class MVCNN(Model):
 
         fc_layer = nn.Linear(svcnn.embedding_size, n_classes)
         self._classifier = nn.Sequential(fc_layer)
+
+    def save(self, path: Path) -> None:
+        """Save the model to the specified path"""
+        torch.save(
+            {
+                "svcnn_embedding_model": self._svcnn_embedding_model.state_dict(),
+                "classifier": self._classifier.state_dict(),
+            },
+            path,
+        )
+
+    def load(self, path: Path) -> None:
+        """Load the model from the specified path"""
+        checkpoint = torch.load(path)
+        self._svcnn_embedding_model.load_state_dict(checkpoint["svcnn_embedding_model"])
+        self._classifier.load_state_dict(checkpoint["classifier"])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass"""

@@ -60,7 +60,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
         if not n_views.nunique() == 1:
             raise ValueError("All models must have the same number of views")
 
-        self._num_views = int(n_views.iloc[0])
+        self._num_views = int(n_views.iloc[0])  # type: ignore
 
     def __len__(self) -> int:
         return int(len(self._dataset) / self._num_views)

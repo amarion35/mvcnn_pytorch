@@ -18,10 +18,20 @@ from mvcnn import (
     DataloaderSettings,
     OptimizerSettings,
     TrainerSettings,
+    RandomDiscreetRotation,
 )
 
 
 from pydantic_settings import BaseSettings
+
+
+class ModelSettings(BaseSettings):
+    """Settings for the training process."""
+
+    optimizer_settings: OptimizerSettings
+    train_dataloader_settings: DataloaderSettings
+    val_dataloader_settings: DataloaderSettings
+    trainer_settings: TrainerSettings
 
 
 class Settings(BaseSettings):
@@ -31,31 +41,22 @@ class Settings(BaseSettings):
     cnn_name: str
     pretraining: bool
     dataset_settings: DatasetSettings
-    svcnn_optimizer_settings: OptimizerSettings
-    svcnn_train_dataloader_settings: DataloaderSettings
-    svcnn_val_dataloader_settings: DataloaderSettings
-    svcnn_trainer_settings: TrainerSettings
-    mvcnn_optimizer_settings: OptimizerSettings
-    mvcnn_train_dataloader_settings: DataloaderSettings
-    mvcnn_val_dataloader_settings: DataloaderSettings
-    mvcnn_trainer_settings: TrainerSettings
+    svcnn_model_settings: ModelSettings
+    mvcnn_model_settings: ModelSettings
 
 
 def train_svcnn(settings: Settings) -> SVCNN:
 
     svcnn_train_transform = transforms.Compose(
         transforms=[
-            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            RandomDiscreetRotation(degrees=[0, 90, 180, 270]),
         ]
     )
 
     svcnn_val_transform = transforms.Compose(
         [
-            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ]
     )
 
@@ -66,9 +67,9 @@ def train_svcnn(settings: Settings) -> SVCNN:
     )
     svcnn_train_loader = torch.utils.data.DataLoader(
         dataset=svcnn_train_dataset,
-        batch_size=settings.svcnn_train_dataloader_settings.batch_size,
-        shuffle=settings.svcnn_train_dataloader_settings.shuffle,
-        num_workers=settings.svcnn_train_dataloader_settings.num_workers,
+        batch_size=settings.svcnn_model_settings.train_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_model_settings.train_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_model_settings.train_dataloader_settings.num_workers,
     )
     svcnn_val_dataset = SingleViewDataset(
         path=settings.dataset_settings.path,
@@ -77,9 +78,9 @@ def train_svcnn(settings: Settings) -> SVCNN:
     )
     svcnn_val_loader = torch.utils.data.DataLoader(
         dataset=svcnn_val_dataset,
-        batch_size=settings.svcnn_val_dataloader_settings.batch_size,
-        shuffle=settings.svcnn_val_dataloader_settings.shuffle,
-        num_workers=settings.svcnn_val_dataloader_settings.num_workers,
+        batch_size=settings.svcnn_model_settings.val_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_model_settings.val_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_model_settings.val_dataloader_settings.num_workers,
     )
 
     svcnn = SVCNN(
@@ -90,9 +91,9 @@ def train_svcnn(settings: Settings) -> SVCNN:
 
     svcnn_optimizer = optim.Adam(
         params=svcnn.parameters(),
-        lr=settings.svcnn_optimizer_settings.lr,
-        betas=settings.svcnn_optimizer_settings.betas,
-        weight_decay=settings.svcnn_optimizer_settings.weight_decay,
+        lr=settings.svcnn_model_settings.optimizer_settings.lr,
+        betas=settings.svcnn_model_settings.optimizer_settings.betas,
+        weight_decay=settings.svcnn_model_settings.optimizer_settings.weight_decay,
     )
 
     svcnn_metrics = Metrics(metrics=[Accuracy()])
@@ -104,11 +105,12 @@ def train_svcnn(settings: Settings) -> SVCNN:
         loss=nn.CrossEntropyLoss(),
         metrics=svcnn_metrics,
         optimizer=svcnn_optimizer,
-        log_dir=settings.svcnn_trainer_settings.log_dir,
-        steps_per_epoch=settings.svcnn_trainer_settings.steps_per_epoch,
+        log_dir=settings.svcnn_model_settings.trainer_settings.log_dir,
+        steps_per_epoch=settings.svcnn_model_settings.trainer_settings.steps_per_epoch,
+        device=settings.svcnn_model_settings.trainer_settings.device,
     )
 
-    svcnn_trainer.train(settings.svcnn_trainer_settings.epochs)
+    svcnn_trainer.train(settings.svcnn_model_settings.trainer_settings.epochs)
 
     return svcnn
 
@@ -117,16 +119,13 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
 
     mvcnn_train_transform = transforms.Compose(
         transforms=[
-            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            RandomDiscreetRotation(degrees=[0, 90, 180, 270]),
         ]
     )
     mvcnn_val_transform = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),
+        transforms=[
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
         ]
     )
 
@@ -137,9 +136,9 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
     )
     mvcnn_train_loader = torch.utils.data.DataLoader(
         dataset=mvcnn_train_dataset,
-        batch_size=settings.mvcnn_train_dataloader_settings.batch_size,
-        shuffle=settings.mvcnn_train_dataloader_settings.shuffle,
-        num_workers=settings.mvcnn_train_dataloader_settings.num_workers,
+        batch_size=settings.mvcnn_model_settings.train_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_model_settings.train_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_model_settings.train_dataloader_settings.num_workers,
     )
 
     mvcnn_val_dataset = MultiviewDataset(
@@ -149,9 +148,9 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
     )
     mvcnn_val_loader = torch.utils.data.DataLoader(
         dataset=mvcnn_val_dataset,
-        batch_size=settings.mvcnn_val_dataloader_settings.batch_size,
-        shuffle=settings.mvcnn_val_dataloader_settings.shuffle,
-        num_workers=settings.mvcnn_val_dataloader_settings.num_workers,
+        batch_size=settings.mvcnn_model_settings.val_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_model_settings.val_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_model_settings.val_dataloader_settings.num_workers,
     )
 
     mvcnn = MVCNN(
@@ -161,9 +160,9 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
 
     mvcnn_optimizer = optim.Adam(
         params=mvcnn.parameters(),
-        lr=settings.mvcnn_optimizer_settings.lr,
-        betas=settings.mvcnn_optimizer_settings.betas,
-        weight_decay=settings.mvcnn_optimizer_settings.weight_decay,
+        lr=settings.mvcnn_model_settings.optimizer_settings.lr,
+        betas=settings.mvcnn_model_settings.optimizer_settings.betas,
+        weight_decay=settings.mvcnn_model_settings.optimizer_settings.weight_decay,
     )
 
     mvcnn_metrics = Metrics(metrics=[Accuracy()])
@@ -175,11 +174,12 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
         loss=nn.CrossEntropyLoss(),
         metrics=mvcnn_metrics,
         optimizer=mvcnn_optimizer,
-        log_dir=settings.mvcnn_trainer_settings.log_dir,
-        steps_per_epoch=settings.mvcnn_trainer_settings.steps_per_epoch,
+        log_dir=settings.mvcnn_model_settings.trainer_settings.log_dir,
+        steps_per_epoch=settings.mvcnn_model_settings.trainer_settings.steps_per_epoch,
+        device=settings.mvcnn_model_settings.trainer_settings.device,
     )
 
-    mvcnn_trainer.train(settings.mvcnn_trainer_settings.epochs)
+    mvcnn_trainer.train(settings.mvcnn_model_settings.trainer_settings.epochs)
 
     return mvcnn
 

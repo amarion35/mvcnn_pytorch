@@ -10,3 +10,4 @@ class TrainerSettings(BaseSettings):
     log_dir: Path
     steps_per_epoch: int
     epochs: int
+    device: str

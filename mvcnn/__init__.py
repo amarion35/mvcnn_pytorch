@@ -9,3 +9,4 @@ from .mvcnn import MVCNN
 from .dataloader_settings import DataloaderSettings
 from .optimizer_settings import OptimizerSettings
 from .trainer_settings import TrainerSettings
+from .random_discreet_rotation import RandomDiscreetRotation

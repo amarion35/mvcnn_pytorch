@@ -36,6 +36,14 @@ class SVCNN(Model):
 
         self._net = nn.Sequential(self._embedding_model, self._classifier)
 
+    def save(self, path: str) -> None:
+        """Save the model to the specified path"""
+        torch.save(self._net.state_dict(), path)
+
+    def load(self, path: str) -> None:
+        """Load the model from the specified path"""
+        self._net.load_state_dict(torch.load(path))
+
     @property
     def embedding_model(self) -> nn.Module:
         """Return the embedding model"""
