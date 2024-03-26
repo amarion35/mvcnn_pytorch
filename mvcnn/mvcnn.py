@@ -18,8 +18,16 @@ class MVCNN(Model):
 
         self._svcnn_embedding_model = svcnn.embedding_model
 
-        fc_layer = nn.Linear(svcnn.embedding_size, n_classes)
-        self._classifier = nn.Sequential(fc_layer)
+        fc_1 = nn.Linear(svcnn.embedding_size, 4096)
+        relu_1 = nn.ReLU()
+        dropout_1 = nn.Dropout(0.5)
+        fc_2 = nn.Linear(4096, 4096)
+        relu_2 = nn.ReLU()
+        dropout_2 = nn.Dropout(0.5)
+        fc_3 = nn.Linear(4096, n_classes)
+        self._classifier = nn.Sequential(
+            fc_1, relu_1, dropout_1, fc_2, relu_2, dropout_2, fc_3
+        )
 
     def save(self, path: Path) -> None:
         """Save the model to the specified path"""

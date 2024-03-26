@@ -27,7 +27,7 @@
         "trainer_settings": {
             "log_dir": "logs/svcnn",
             "steps_per_epoch": 10,
-            "epochs": 10,
+            "epochs": 1,
             "device": "cuda"
         }
     },
@@ -53,7 +53,7 @@
         "trainer_settings": {
             "log_dir": "logs/mvcnn",
             "steps_per_epoch": 10,
-            "epochs": 10,
+            "epochs": 1,
             "device": "cuda"
         }
     }
