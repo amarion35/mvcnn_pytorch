@@ -1,5 +1,6 @@
 """Define the SVCNN class"""
 
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -36,13 +37,13 @@ class SVCNN(Model):
 
         self._net = nn.Sequential(self._embedding_model, self._classifier)
 
-    def save(self, path: str) -> None:
+    def save(self, path: Path) -> None:
         """Save the model to the specified path"""
-        torch.save(self._net.state_dict(), path)
+        torch.save(self._net.state_dict(), str(path))
 
-    def load(self, path: str) -> None:
+    def load(self, path: Path) -> None:
         """Load the model from the specified path"""
-        self._net.load_state_dict(torch.load(path))
+        self._net.load_state_dict(torch.load(str(path)))
 
     @property
     def embedding_model(self) -> nn.Module:

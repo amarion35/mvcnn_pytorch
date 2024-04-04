@@ -18,7 +18,7 @@ class SingleViewDataset(torch.utils.data.Dataset):
     # Local
     _logger: logging.Logger
     _class_names: list[str]
-    _dataset: pd.DataFrame
+    _metadata: pd.DataFrame
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class SingleViewDataset(torch.utils.data.Dataset):
         filenames: list[Path] = list(self._path.glob("*/*/*"))
         filenames = [f for f in filenames if not f.name.startswith(".")]
         self._class_names = sorted(list(set([f.parent.parent.name for f in filenames])))
-        self._dataset = pd.DataFrame(
+        self._metadata = pd.DataFrame(
             {
                 "filenames": filenames,
                 "class_name": [f.parent.parent.name for f in filenames],
@@ -46,8 +46,14 @@ class SingleViewDataset(torch.utils.data.Dataset):
             }
         )
 
+    def get_metadata(self) -> pd.DataFrame:
+        return self._metadata
+
+    def get_class_names(self) -> list[str]:
+        return self._class_names
+
     def __len__(self) -> int:
-        return len(self._dataset)
+        return len(self._metadata)
 
     @property
     def n_classes(self) -> int:
@@ -57,9 +63,9 @@ class SingleViewDataset(torch.utils.data.Dataset):
         """Return the images and the class label"""
         self._logger.debug("Loading image %i", index)
         # Get the class index
-        class_index = self._dataset["class_index"].iloc[index]
+        class_index = self._metadata["class_index"].iloc[index]
         # Get the image
-        filename = self._dataset["filenames"].iloc[index]
+        filename = self._metadata["filenames"].iloc[index]
         image = Image.open(filename).convert("RGB")
         image = self._transform(image)
         return class_index, image

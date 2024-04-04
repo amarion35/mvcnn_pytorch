@@ -12,7 +12,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
 
     # Inputs
     _path: Path
-    _dataset: pd.DataFrame
+    _metadata: pd.DataFrame
     _set: str
     _transform: transforms.Compose
 
@@ -37,7 +37,7 @@ class MultiviewDataset(torch.utils.data.Dataset):
         filenames = list(self._path.glob("*/*/*"))
         filenames = [f for f in filenames if not f.name.startswith(".")]
         self._class_names = sorted(list(set([f.parent.parent.name for f in filenames])))
-        self._dataset = pd.DataFrame(
+        self._metadata = pd.DataFrame(
             {
                 "filenames": filenames,
                 "class_name": [f.parent.parent.name for f in filenames],
@@ -49,21 +49,27 @@ class MultiviewDataset(torch.utils.data.Dataset):
             }
         )
         # Filter the dataset
-        self._dataset = self._dataset[self._dataset["subset"] == subset]
+        self._metadata = self._metadata[self._metadata["subset"] == subset]
 
         # Get the file paths
-        self._samples_names = list(self._dataset["model_name"].unique())
+        self._samples_names = list(self._metadata["model_name"].unique())
 
         # Get the number of views per model
-        n_views = self._dataset.groupby("model_name").size()
+        n_views = self._metadata.groupby("model_name").size()
         # Check if all models have the same number of views
         if not n_views.nunique() == 1:
             raise ValueError("All models must have the same number of views")
 
         self._num_views = int(n_views.iloc[0])  # type: ignore
 
+    def get_metadata(self) -> pd.DataFrame:
+        return self._metadata
+
+    def get_class_names(self) -> list[str]:
+        return self._class_names
+
     def __len__(self) -> int:
-        return int(len(self._dataset) / self._num_views)
+        return int(len(self._metadata) / self._num_views)
 
     @property
     def n_classes(self) -> int:
@@ -75,13 +81,13 @@ class MultiviewDataset(torch.utils.data.Dataset):
         # Get the model name
         model_name = self._samples_names[index]
         # Get the class name
-        class_name = self._dataset[self._dataset["model_name"] == model_name].iloc[0][
+        class_name = self._metadata[self._metadata["model_name"] == model_name].iloc[0][
             "class_name"
         ]
         # Get the class index
         class_index = self._class_names.index(class_name)
         # Get the file paths
-        file_paths = self._dataset[self._dataset["model_name"] == model_name][
+        file_paths = self._metadata[self._metadata["model_name"] == model_name][
             "filenames"
         ].tolist()
         # Load the images

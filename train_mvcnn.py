@@ -186,7 +186,7 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
 
 def train() -> None:
 
-    settings_path = Path("settings.json")
+    settings_path = Path("train_mvcnn_settings.json")
     settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
 
     # STAGE 1

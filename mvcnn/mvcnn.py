@@ -51,12 +51,12 @@ class MVCNN(Model):
         # Reshape the tensor to have the shape (num_views * batch_size, channels, height, width)
         x = x.view(-1, channels, height, width)
         # Compute the embedding of each image
-        y = self._svcnn_embedding_model(x)
+        x = self._svcnn_embedding_model(x)
         # Reshape the tensor to have the shape (num_views, batch_size, num_features)
-        y = y.view(batch_size, num_views, -1)
+        x = x.view(batch_size, num_views, -1)
         # Max pooling over the views
-        y = torch.max(y, 1)[0]
+        x = torch.max(x, 1)[0]
         # Flatten the tensor
-        y = y.view(y.shape[0], -1)
+        x = x.view(x.shape[0], -1)
         # Classification
-        return self._classifier(y)
+        return self._classifier(x)
