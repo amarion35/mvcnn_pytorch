@@ -78,13 +78,10 @@ def predict() -> None:
     mvcnn.load(settings.mvcnn_weights_path)
 
     predictor = Predictor(model=mvcnn, loader=loader, device=settings.device)
-    pred = predictor.predict_class_indices()
+    pred = predictor.predict()
 
     # Save the predictions
-    metadata = dataset.get_metadata()
-    class_names = dataset.get_class_names()
-    metadata["prediction"] = [class_names[i] for i in pred]
-    metadata.to_csv(settings.output_path, index=False)
+    pred.to_csv(settings.output_path, index_label="indices")
 
 
 logging.basicConfig(

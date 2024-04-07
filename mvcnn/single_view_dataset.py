@@ -59,7 +59,7 @@ class SingleViewDataset(torch.utils.data.Dataset):
     def n_classes(self) -> int:
         return len(self._class_names)
 
-    def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
+    def __getitem__(self, index: int) -> tuple[int, int, torch.Tensor]:
         """Return the images and the class label"""
         self._logger.debug("Loading image %i", index)
         # Get the class index
@@ -67,5 +67,5 @@ class SingleViewDataset(torch.utils.data.Dataset):
         # Get the image
         filename = self._metadata["filenames"].iloc[index]
         image = Image.open(filename).convert("RGB")
-        image = self._transform(image)
-        return class_index, image
+        tensor_image: torch.Tensor = self._transform(image)
+        return index, class_index, tensor_image

@@ -2,6 +2,7 @@
 
 import logging
 import numpy as np
+import pandas as pd
 import torch
 import torch.utils.data
 from torch.autograd import Variable
@@ -50,17 +51,18 @@ class Predictor(object):
             (step + 1) / n_step * 100,
         )
 
-    def _predict(self) -> np.ndarray:
+    def predict(self) -> pd.DataFrame:
         """Validate the model for one epoch"""
         self._logger.info("Prediction started")
 
         n_steps = len(self._loader)
 
+        indices: list[int] = []
         predictions: list[np.ndarray] = []
 
         self._model.eval()
         with torch.no_grad():
-            for step, (class_indices, images) in enumerate(self._loader):
+            for step, (batch_indices, class_indices, images) in enumerate(self._loader):
 
                 images = Variable(images).to(self._device)
                 class_indices = Variable(class_indices).to(self._device)
@@ -68,6 +70,7 @@ class Predictor(object):
                 outputs = self._model(images)
 
                 predictions.append(outputs.cpu().numpy())
+                indices.append(batch_indices)
 
                 self._log_step(
                     step=step,
@@ -77,14 +80,12 @@ class Predictor(object):
 
         self._logger.info("Prediction completed")
 
-        return np.array(predictions).reshape(-1, self._model.n_classes)
-
-    def predict_class_indices(self) -> np.ndarray:
-        """Predict the class indices"""
-        predictions = self._predict()
-        return np.argmax(predictions, axis=1)
-
-    def predict_class_probabilities(self) -> np.ndarray:
-        """Predict the class probabilities"""
-        predictions = self._predict()
-        return predictions
+        return pd.DataFrame(
+            {
+                "indices": np.concatenate(indices),
+                "predictions_probabilities": list(np.concatenate(predictions)),
+                "predictions_class_indices": np.argmax(
+                    np.concatenate(predictions), axis=1
+                ),
+            }
+        )

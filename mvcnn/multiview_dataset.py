@@ -75,7 +75,11 @@ class MultiviewDataset(torch.utils.data.Dataset):
     def n_classes(self) -> int:
         return len(self._class_names)
 
-    def __getitem__(self, index: int) -> tuple[int, torch.Tensor]:
+    @property
+    def samples_names(self) -> list[str]:
+        return self._samples_names
+
+    def __getitem__(self, index: int) -> tuple[int, int, torch.Tensor]:
         """Return the images and the class label"""
         self._logger.debug("Loading image %i", index)
         # Get the model name
@@ -99,4 +103,4 @@ class MultiviewDataset(torch.utils.data.Dataset):
             imgs.append(img)
         # Stack the images
         imgs = torch.stack(imgs)
-        return class_index, imgs
+        return index, class_index, imgs

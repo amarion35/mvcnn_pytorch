@@ -123,10 +123,12 @@ class Trainer(object):
         epoch_losses: list[float] = []
         epoch_metrics: dict[str, list[float]] = {}
         n_steps = min(len(self._train_loader), self._steps_per_epoch)
+        if n_steps == -1:
+            n_steps = len(self._train_loader)
 
         self._model.train()
         with torch.enable_grad():
-            for step, (class_indices, images) in enumerate(self._train_loader):
+            for step, (_, class_indices, images) in enumerate(self._train_loader):
 
                 if step >= n_steps:
                     break
@@ -170,10 +172,12 @@ class Trainer(object):
         epoch_losses: list[float] = []
         epoch_metrics: dict[str, list[float]] = {}
         n_steps = min(len(self._val_loader), self._steps_per_epoch)
+        if n_steps == -1:
+            n_steps = len(self._train_loader)
 
         self._model.eval()
         with torch.no_grad():
-            for step, (class_indices, images) in enumerate(self._val_loader):
+            for step, (_, class_indices, images) in enumerate(self._val_loader):
 
                 if step >= n_steps:
                     break

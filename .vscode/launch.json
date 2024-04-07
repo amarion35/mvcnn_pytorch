@@ -9,14 +9,16 @@
             "type": "debugpy",
             "request": "launch",
             "program": "train_mvcnn.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         },
         {
             "name": "Predict",
             "type": "debugpy",
             "request": "launch",
             "program": "predict_mvcnn.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
