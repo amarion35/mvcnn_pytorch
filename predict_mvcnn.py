@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     output_path: Path
 
 
-def predict() -> None:
+def predict(settings_path: Path = Path("predict_mvcnn_settings.json")) -> None:
+    """Predict the classes of the test set using the MVCNN model."""
 
-    settings_path = Path("predict_mvcnn_settings.json")
     settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
 
     transform = transforms.Compose(

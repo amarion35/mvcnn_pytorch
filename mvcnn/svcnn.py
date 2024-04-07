@@ -26,11 +26,13 @@ class SVCNN(Model):
         elif cnn_name == "resnet50":
             resnet = models.resnet50(pretrained=pretraining)
 
+        # Remove the last layer
         layers = list(resnet.children())
         last_layer = layers.pop()
         layers.append(nn.Flatten())
         self._embedding_model = nn.Sequential(*layers)
 
+        # Add a new last layer
         self._embedding_size = last_layer.in_features
         fc_layer = nn.Linear(self._embedding_size, n_classes)
         self._classifier = nn.Sequential(fc_layer)

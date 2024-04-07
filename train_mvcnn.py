@@ -46,6 +46,7 @@ class Settings(BaseSettings):
 
 
 def train_svcnn(settings: Settings) -> SVCNN:
+    """Train the SVCNN model."""
 
     svcnn_train_transform = transforms.Compose(
         transforms=[
@@ -116,6 +117,7 @@ def train_svcnn(settings: Settings) -> SVCNN:
 
 
 def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
+    """Train the MVCNN model."""
 
     mvcnn_train_transform = transforms.Compose(
         transforms=[
@@ -184,9 +186,9 @@ def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
     return mvcnn
 
 
-def train() -> None:
+def train(settings_path: Path = Path("train_mvcnn_settings.json")) -> None:
+    """Train the SVCNN and MVCNN models."""
 
-    settings_path = Path("train_mvcnn_settings.json")
     settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
 
     # STAGE 1
