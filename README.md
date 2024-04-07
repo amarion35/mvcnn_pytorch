@@ -1,15 +1,38 @@
 # PyTorch code for MVCNN  
-Code is tested on Python 3.6 and PyTorch 0.4.1
+This is an updated version of the [pytorch implementation of MVCNN](https://github.com/jongchyisu/mvcnn_pytorch).
 
-First, download images and put it under ```modelnet40_images_new_12x```:  
-[Shaded Images (1.6GB)](http://supermoe.cs.umass.edu/shape_recog/shaded_images.tar.gz)  
+## Tested Versions
+- Python 3.12
+- PyTorch 2.2.1
 
-Command for training:  
-```python train_mvcnn.py -name mvcnn -num_models 1000 -weight_decay 0.001 -num_views 12 -cnn_name vgg11```
+## Get the dataset
+    ./download_dataset.sh
 
+## Install dependencies
+
+First install poetry: https://python-poetry.org/docs/#installing-with-the-official-installer
+
+Then use poetry to create a virtual environement and install dependencies.
+
+    poetry install
+
+## Configure training settings
+
+Edit the file `train_mvcnn_settings.json`.
+
+## Run training
+
+    poetry run python train_mvcnn.py
+
+## Edit prediction settings
+
+Edit the file `predict_mvcnn_settings.json`.
+
+## Run predictions
+
+    poetry run python predict_mvcnn.py
   
-  
-
+## Additional Informations
 [Project webpage](https://people.cs.umass.edu/~jcsu/papers/shape_recog/)  
 [Depth Images (1.6GB)](http://supermoe.cs.umass.edu/shape_recog/depth_images.tar.gz)  
 
