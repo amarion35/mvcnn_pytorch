@@ -1,0 +1,13 @@
+{
+    "name": "MVCNN",
+    "cnn_name": "resnet18",
+    "dataset_settings": {
+        "path": "data/modelnet40_images_new_12x/"
+    },
+    "svcnn_weights_path": "logs/svcnn/2024-04-04_21-46-27/checkpoints/epoch_1.pth",
+    "mvcnn_weights_path": "logs/mvcnn/2024-04-04_21-47-53/checkpoints/epoch_1.pth",
+    "batch_size": 32,
+    "num_workers": 4,
+    "device": "cuda",
+    "output_path": "logs/mvcnn/2024-04-04_21-47-53/predictions.csv"
+}

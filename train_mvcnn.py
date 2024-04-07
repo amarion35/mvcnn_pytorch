@@ -1,81 +1,209 @@
-import numpy as np
+import logging
+from pathlib import Path
 import torch
+import torch.utils.data
 import torch.optim as optim
 import torch.nn as nn
-import os,shutil,json
-import argparse
+from torchvision import transforms
 
-from tools.Trainer import ModelNetTrainer
-from tools.ImgDataset import MultiviewImgDataset, SingleImgDataset
-from models.MVCNN import MVCNN, SVCNN
+from mvcnn import (
+    Trainer,
+    MultiviewDataset,
+    SingleViewDataset,
+    DatasetSettings,
+    Metrics,
+    Accuracy,
+    MVCNN,
+    SVCNN,
+    DataloaderSettings,
+    OptimizerSettings,
+    TrainerSettings,
+    RandomDiscreetRotation,
+)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-name", "--name", type=str, help="Name of the experiment", default="MVCNN")
-parser.add_argument("-bs", "--batchSize", type=int, help="Batch size for the second stage", default=8)# it will be *12 images in each batch for mvcnn
-parser.add_argument("-num_models", type=int, help="number of models per class", default=1000)
-parser.add_argument("-lr", type=float, help="learning rate", default=5e-5)
-parser.add_argument("-weight_decay", type=float, help="weight decay", default=0.0)
-parser.add_argument("-no_pretraining", dest='no_pretraining', action='store_true')
-parser.add_argument("-cnn_name", "--cnn_name", type=str, help="cnn model name", default="vgg11")
-parser.add_argument("-num_views", type=int, help="number of views", default=12)
-parser.add_argument("-train_path", type=str, default="modelnet40_images_new_12x/*/train")
-parser.add_argument("-val_path", type=str, default="modelnet40_images_new_12x/*/test")
-parser.set_defaults(train=False)
 
-def create_folder(log_dir):
-    # make summary folder
-    if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
-    else:
-        print('WARNING: summary folder already exists!! It will be overwritten!!')
-        shutil.rmtree(log_dir)
-        os.mkdir(log_dir)
+from pydantic_settings import BaseSettings
 
-if __name__ == '__main__':
-    args = parser.parse_args()
 
-    pretraining = not args.no_pretraining
-    log_dir = args.name
-    create_folder(args.name)
-    config_f = open(os.path.join(log_dir, 'config.json'), 'w')
-    json.dump(vars(args), config_f)
-    config_f.close()
+class ModelSettings(BaseSettings):
+    """Settings for the training process."""
+
+    optimizer_settings: OptimizerSettings
+    train_dataloader_settings: DataloaderSettings
+    val_dataloader_settings: DataloaderSettings
+    trainer_settings: TrainerSettings
+
+
+class Settings(BaseSettings):
+    """Settings for the training process."""
+
+    name: str
+    cnn_name: str
+    pretraining: bool
+    dataset_settings: DatasetSettings
+    svcnn_model_settings: ModelSettings
+    mvcnn_model_settings: ModelSettings
+
+
+def train_svcnn(settings: Settings) -> SVCNN:
+    """Train the SVCNN model."""
+
+    svcnn_train_transform = transforms.Compose(
+        transforms=[
+            transforms.ToTensor(),
+            RandomDiscreetRotation(degrees=[0, 90, 180, 270]),
+        ]
+    )
+
+    svcnn_val_transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+        ]
+    )
+
+    svcnn_train_dataset = SingleViewDataset(
+        path=settings.dataset_settings.path,
+        subset="train",
+        transform=svcnn_train_transform,
+    )
+    svcnn_train_loader = torch.utils.data.DataLoader(
+        dataset=svcnn_train_dataset,
+        batch_size=settings.svcnn_model_settings.train_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_model_settings.train_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_model_settings.train_dataloader_settings.num_workers,
+    )
+    svcnn_val_dataset = SingleViewDataset(
+        path=settings.dataset_settings.path,
+        subset="test",
+        transform=svcnn_val_transform,
+    )
+    svcnn_val_loader = torch.utils.data.DataLoader(
+        dataset=svcnn_val_dataset,
+        batch_size=settings.svcnn_model_settings.val_dataloader_settings.batch_size,
+        shuffle=settings.svcnn_model_settings.val_dataloader_settings.shuffle,
+        num_workers=settings.svcnn_model_settings.val_dataloader_settings.num_workers,
+    )
+
+    svcnn = SVCNN(
+        cnn_name=settings.cnn_name,
+        pretraining=settings.pretraining,
+        n_classes=svcnn_train_dataset.n_classes,
+    )
+
+    svcnn_optimizer = optim.Adam(
+        params=svcnn.parameters(),
+        lr=settings.svcnn_model_settings.optimizer_settings.lr,
+        betas=settings.svcnn_model_settings.optimizer_settings.betas,
+        weight_decay=settings.svcnn_model_settings.optimizer_settings.weight_decay,
+    )
+
+    svcnn_metrics = Metrics(metrics=[Accuracy()])
+
+    svcnn_trainer = Trainer(
+        model=svcnn,
+        train_loader=svcnn_train_loader,
+        val_loader=svcnn_val_loader,
+        loss=nn.CrossEntropyLoss(),
+        metrics=svcnn_metrics,
+        optimizer=svcnn_optimizer,
+        log_dir=settings.svcnn_model_settings.trainer_settings.log_dir,
+        steps_per_epoch=settings.svcnn_model_settings.trainer_settings.steps_per_epoch,
+        device=settings.svcnn_model_settings.trainer_settings.device,
+    )
+
+    svcnn_trainer.train(settings.svcnn_model_settings.trainer_settings.epochs)
+
+    return svcnn
+
+
+def train_mvcnn(svcnn: SVCNN, settings: Settings) -> MVCNN:
+    """Train the MVCNN model."""
+
+    mvcnn_train_transform = transforms.Compose(
+        transforms=[
+            transforms.ToTensor(),
+            RandomDiscreetRotation(degrees=[0, 90, 180, 270]),
+        ]
+    )
+    mvcnn_val_transform = transforms.Compose(
+        transforms=[
+            transforms.ToTensor(),
+        ]
+    )
+
+    mvcnn_train_dataset = MultiviewDataset(
+        path=settings.dataset_settings.path,
+        subset="train",
+        transform=mvcnn_train_transform,
+    )
+    mvcnn_train_loader = torch.utils.data.DataLoader(
+        dataset=mvcnn_train_dataset,
+        batch_size=settings.mvcnn_model_settings.train_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_model_settings.train_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_model_settings.train_dataloader_settings.num_workers,
+    )
+
+    mvcnn_val_dataset = MultiviewDataset(
+        path=settings.dataset_settings.path,
+        subset="test",
+        transform=mvcnn_val_transform,
+    )
+    mvcnn_val_loader = torch.utils.data.DataLoader(
+        dataset=mvcnn_val_dataset,
+        batch_size=settings.mvcnn_model_settings.val_dataloader_settings.batch_size,
+        shuffle=settings.mvcnn_model_settings.val_dataloader_settings.shuffle,
+        num_workers=settings.mvcnn_model_settings.val_dataloader_settings.num_workers,
+    )
+
+    mvcnn = MVCNN(
+        svcnn=svcnn,
+        n_classes=mvcnn_train_dataset.n_classes,
+    )
+
+    mvcnn_optimizer = optim.Adam(
+        params=mvcnn.parameters(),
+        lr=settings.mvcnn_model_settings.optimizer_settings.lr,
+        betas=settings.mvcnn_model_settings.optimizer_settings.betas,
+        weight_decay=settings.mvcnn_model_settings.optimizer_settings.weight_decay,
+    )
+
+    mvcnn_metrics = Metrics(metrics=[Accuracy()])
+
+    mvcnn_trainer = Trainer(
+        model=mvcnn,
+        train_loader=mvcnn_train_loader,
+        val_loader=mvcnn_val_loader,
+        loss=nn.CrossEntropyLoss(),
+        metrics=mvcnn_metrics,
+        optimizer=mvcnn_optimizer,
+        log_dir=settings.mvcnn_model_settings.trainer_settings.log_dir,
+        steps_per_epoch=settings.mvcnn_model_settings.trainer_settings.steps_per_epoch,
+        device=settings.mvcnn_model_settings.trainer_settings.device,
+    )
+
+    mvcnn_trainer.train(settings.mvcnn_model_settings.trainer_settings.epochs)
+
+    return mvcnn
+
+
+def train(settings_path: Path = Path("train_mvcnn_settings.json")) -> None:
+    """Train the SVCNN and MVCNN models."""
+
+    settings = Settings.model_validate_json(settings_path.read_text(encoding="utf-8"))
 
     # STAGE 1
-    log_dir = args.name+'_stage_1'
-    create_folder(log_dir)
-    cnet = SVCNN(args.name, nclasses=40, pretraining=pretraining, cnn_name=args.cnn_name)
-
-    optimizer = optim.Adam(cnet.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    
-    n_models_train = args.num_models*args.num_views
-
-    train_dataset = SingleImgDataset(args.train_path, scale_aug=False, rot_aug=False, num_models=n_models_train, num_views=args.num_views)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=0)
-
-    val_dataset = SingleImgDataset(args.val_path, scale_aug=False, rot_aug=False, test_mode=True)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
-    print('num_train_files: '+str(len(train_dataset.filepaths)))
-    print('num_val_files: '+str(len(val_dataset.filepaths)))
-    trainer = ModelNetTrainer(cnet, train_loader, val_loader, optimizer, nn.CrossEntropyLoss(), 'svcnn', log_dir, num_views=1)
-    trainer.train(30)
+    svcnn = train_svcnn(settings)
 
     # STAGE 2
-    log_dir = args.name+'_stage_2'
-    create_folder(log_dir)
-    cnet_2 = MVCNN(args.name, cnet, nclasses=40, cnn_name=args.cnn_name, num_views=args.num_views)
-    del cnet
-
-    optimizer = optim.Adam(cnet_2.parameters(), lr=args.lr, weight_decay=args.weight_decay, betas=(0.9, 0.999))
-    
-    train_dataset = MultiviewImgDataset(args.train_path, scale_aug=False, rot_aug=False, num_models=n_models_train, num_views=args.num_views)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchSize, shuffle=False, num_workers=0)# shuffle needs to be false! it's done within the trainer
-
-    val_dataset = MultiviewImgDataset(args.val_path, scale_aug=False, rot_aug=False, num_views=args.num_views)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batchSize, shuffle=False, num_workers=0)
-    print('num_train_files: '+str(len(train_dataset.filepaths)))
-    print('num_val_files: '+str(len(val_dataset.filepaths)))
-    trainer = ModelNetTrainer(cnet_2, train_loader, val_loader, optimizer, nn.CrossEntropyLoss(), 'mvcnn', log_dir, num_views=args.num_views)
-    trainer.train(30)
+    mvcnn = train_mvcnn(svcnn, settings)
 
 
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logging.getLogger("PIL").setLevel(logging.INFO)
+logging.getLogger("SingleViewDataset").setLevel(logging.INFO)
+logging.getLogger("MultiviewDataset").setLevel(logging.INFO)
+
+if __name__ == "__main__":
+    train()
